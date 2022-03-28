@@ -1,11 +1,29 @@
 # Cilium Datapath Performance Test Plan
 
+## Test Plan Description
+Datapath Performance will cover 
+
+- TCP / UDP Stream
+- TCP / UDP RR
+- TCP CRR
+
+Each of these tests will have multiple metrics we will collect and compare. 
+
+| Workload | Main Metric | Secondary Metric |
+|----------|-------------|------------------|
+| Stream   | Throughput (Mbps) | CPU usage  |
+| RR       | Latency (ms) | CPU usage       |
+| CRR      | Latency (ms) | CPU usage       |
+
+> CPU usage will be for the Cilium pods as well as the overall node CPU usage. We will use Prometheus to collect this information. 
+
 ## System Under Test (SUT) definition
+
+### Tools to be deployed on the SUT
 
 <details>
  <summary> Expand section </summary>
- 
-### Tools to be deployed on the SUT
+
  - Prometheus 
 *How do we install prom?*\
 `helm install prometheus prometheus-community/prometheus --namespace prometheus  --namespace prometheus --create-namespace`
@@ -23,6 +41,8 @@
  `git clone http://github.com/cloud-bulldozer/benchmark-operator;cd benchmark-operator;cd chart/benchmark-operator;helm install benchmark-operator . -n benchmark-operator --create-namespace`
  
     More background on how we use benchmark-operator : https://hackmd.io/DfCvLvMxR66a7iyCDN_Vng
+
+- ciium-cli
  
  </details>
  
@@ -32,42 +52,37 @@ Datapath Performance testing will be in a single Region and Zone.
 We will use `cilium install` which will capture SUT details such as the platform we are running on, to help build the most
 performant configuration for Cilium to run. 
 
-<details>
-  <summary>Expand section</summary>
- TODO: Turn into table
-#### EKS
-Region: us-west-2
+| IaaS | SaaS | Controller Sizes | Node Sizes |  Region | Zone |
+|------|------|------------------|------------|---------|------|
+| AWS  | EKS  | n/a | m5.2xlarge | us-west-2 |
+| GCP | GKE | n/a | m5.large | us-west-2 |
+| Azure | AKS | n/a | Standard_D2_v5 | uswest2 |
 
-**Instance Count & Sizes**
-- 2 Nodes (should suffice)
-- m5.2xlarge 
+> Comment : Need to ensure the GCP size is close to the same CPU/Bandwidth other clouds 
 
-#### GKE
-Region: us-west-2
+### Non-Managed Platform testing
+In this section, we will discuss Enterprise / On-prem deployments. There will also be specific scenario's that we only test in non-managed/baremetal platforms. Example scenario's would be high rate packet-per-second testing (pps), using DPDK tools such as trex/moongen. 
 
-**Instance Count & Sizes**
-- 2 Nodes (should suffice)
-- m5.large
+| IaaS | SaaS | Controller Sizes | Node Sizes |  Region |
+|------|------|------------------|------------|---------|
+| AWS | OpenShift | m5.2xlarge | m5.2xlarge | us-west-2 |
+| Baremetal | OpenShift | [Server type] | [Server type] | n/a |
 
-#### AKS
-Region: uswest2
-
-**Instance Count & Sizes**
-- 2 Nodes (should suffice)
-- Standard_D2_v5
- 
- </details>
+> Comment : Baremetal machines we have today are not sutabile to automate against, they lack IPMI / BMC. We could consider Packet.net or something similar.
 
 ## Scenarios
 
 ### Cilium Configuration(s)
 
-- Cilium without Hubble enabled (Baseline)
-- Cilium with Hubble enabled
-- Cilium with `install-no-conntrack-iptables-rules=true` (helm value - not sure we have a cli mapping)
-- Cilium with `bandwidthManager=true` (helm value - not sure we have a cli mapping)
-- Cilium with Service Mesh Beta
- 
+| Scenario name | Hubble        | no-conntrack-iptables | bandwidthManager |
+|---------------|---------------|-----------------------|-----------|
+| Baseline       | | | |
+| Observibility | ✅ | | |
+| Performance   | | ✅ | ✅ |
+| Performance w/ Observibility | ✅ |✅ | ✅ |
+
+> Questions : Are there other configuartion options we need for the performance config
+
 ### Pod Scenarios 
 <details open>
   <summary>Expand section</summary>
@@ -75,7 +90,6 @@ Region: uswest2
 ### hostNetwork
   ```mermaid
     graph LR;
-      ClientPod====>ServerPod
       subgraph NodeA
         ClientPod
       end
