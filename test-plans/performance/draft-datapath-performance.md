@@ -1,5 +1,9 @@
 # Cilium Datapath Performance Test Plan
 
+## Frequency we will run through this test-plan
+
+This test-plan should be executed weekly across platforms and kernels to identify data-plane performance regressions.
+
 ## Test Plan Description
 Datapath Performance will cover 
 
@@ -21,9 +25,6 @@ Each of these tests will have multiple metrics we will collect and compare.
 
 ### Tools to be deployed on the SUT
 
-<details>
- <summary> Expand section </summary>
-
  - Prometheus 
 *How do we install prom?*\
 `helm install prometheus prometheus-community/prometheus --namespace prometheus  --namespace prometheus --create-namespace`
@@ -44,8 +45,9 @@ Each of these tests will have multiple metrics we will collect and compare.
 
 - ciium-cli
  
- </details>
- 
+### Cilium Versions we will test
+For dataplane testing we will 
+
 ### Managed Platform testing
 Datapath Performance testing will be in a single Region and Zone.
 
@@ -147,16 +149,23 @@ Each Platform has different bandwidth guidelines for each instance size.
 ## CPU overhead for Observability
 This needs some more investigation to establish a basline. 
 
+---
+
 ## Test Cases
 ### 1.1 Baseline hostNetwork tests
-<details>
-  <summary>Expand section</summary>
- 
 #### Description
+Throughput test using the hostNetwork. This will be across two nodes in the same Region/Zone, one pod with hostNetwork labeled as the server, and on a different node a pod with hostNetwork labeled as the client.
+#### Workflow
+- Deploy Cluster (AWS/GCP/Azure)
+- Install Benchmark Operator 
+- Install Prometheus  
+
+*Note :* Determine if we should use cilium-cli or benchmark-operator
+
 Using `benchmark-operator` 
 ```yaml
 # within args:
-run_id: "rook-eks-cilium-01" # name the test
+run_id: "cilium-1-1-hostNetwork" # name the test
 hostnetwork: true # Bypass pod network, pass nic to pod
 serviceip: false # Place the server behind a service
 debug: false
@@ -179,17 +188,21 @@ sizes:
   - 16384
 runtime: 30
 ```
-
 #### Metrics
 - Benchmark Result Measured in throughput and latency
 - CPU / Memory of node during duration of test 
- </details>
+
  
 ### 1.2 Baseline same node tests
-<details>
-  <summary>Expand section</summary>
- 
 #### Description
+Launch two pods on a single node, one pod being the server and the other being the client.
+#### Workflow
+- Deploy Cluster (AWS/GCP/Azure)
+- Install Benchmark Operator 
+- Install Prometheus  
+
+*Note :* Determine if we should use cilium-cli or benchmark-operator
+
 Using `benchmark-operator` 
 ```yaml
 # within args:
@@ -216,17 +229,18 @@ sizes:
   - 16384
 runtime: 30
 ```
-
 #### Metrics
 - Benchmark Result Measured in throughput and latency
 - CPU / Memory of node during duration of test 
  </details>
 
 ### 1.3 Baseline across node tests
-<details>
-  <summary>Expand section</summary>
- 
 #### Description
+Throughput test using the CNI network. This will be across two nodes in the same Region/Zone, one pod with hostNetwork labeled as the server, and on a different node a pod with hostNetwork labeled as the client.
+#### Workflow
+- Deploy Cluster (AWS/GCP/Azure)
+- Install Benchmark Operator 
+- Install Prometheus  
 Using `benchmark-operator` 
 ```yaml
 # within args:
@@ -253,8 +267,6 @@ sizes:
   - 16384
 runtime: 30
 ```
-
 #### Metrics
 - Benchmark Result Measured in throughput and latency
 - CPU / Memory of node during duration of test 
- </details>
