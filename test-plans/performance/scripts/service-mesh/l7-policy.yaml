@@ -1,0 +1,21 @@
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "l7rule"
+spec:
+  description: "Allow HTTP GET / from app=workload to app=baseline"
+  endpointSelector:
+    matchLabels:
+      app: baseline 
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: workload 
+    toPorts:
+    - ports:
+      - port: "9080"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/"

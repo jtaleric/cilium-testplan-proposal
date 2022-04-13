@@ -19,14 +19,10 @@ Each of these tests will have multiple metrics we will collect and compare.
 ## Tooling
 ### Tools to be deployed on the SUT
 
-- Fortio UI \
-*How do we install Fortio \
-For your distribution read the docs : https://github.com/fortio/fortio#installation 
-
-- Performance bookinfo \
-*How do we install perf bookinfo?*\
+- Nighthawk-http-server \
+*How do we install nighthawk-http-server?*\
 First label one of your nodes with `app=workload`
- then `kubectl create -f https://gist.githubusercontent.com/jtaleric/ededfed35facde1296b40ca757efa3e8/raw/8ac3ac2fa6b07a9afe5bd3b5a461adbe71f048d9/performance-bookinfo.yaml`
+ then `kubectl create -f scripts/service-mesh/sm-perf.yaml` 
 
  - Prometheus \
 *How do we install prom?*\
@@ -67,6 +63,7 @@ global:
 
 ```
 
+For the kube-burner metrics, use [rook-node-v2.yaml](https://gist.github.com/jtaleric/c2a9c4974cd82c358ce4e1b5fd2d40f3#file-rook-node-v2-yaml)
 
 
 ## System Under Test (SUT) definition
@@ -85,7 +82,7 @@ We will use `cilium install` which will capture SUT details such as the platform
 ### Baseline - No L7 Policy, Ingress and Hubble
 Envoy shouldn't even bee in the picture here, as we haven't created an L7 policy or defined an ingress. 
 
-#### Simple
+#### HTTP Request
   ```mermaid
     graph LR;
       subgraph NodeA
@@ -93,30 +90,15 @@ Envoy shouldn't even bee in the picture here, as we haven't created an L7 policy
       end
       subgraph NodeB
         Service
-        ProductPage
+        WebServer 
       end
-    Service---ProductPage
-    LoadPod---Service
- ```
-
-#### With Backend Calls
-  ```mermaid
-    graph LR;
-      subgraph NodeA
-        LoadPod
-      end
-      subgraph NodeB
-        Service
-        ProductPage
-        Backend
-      end
-    Service---ProductPage---Backend
+    Service---WebServer
     LoadPod---Service
  ```
 
  ### With L7 Policy
  With l7 Policy, Envoy will only be created on the node that has the pod which matches the label for the l7 policy. 
- #### Simple HTTP Request
+ #### HTTP Request
    ```mermaid
     graph LR;
       subgraph NodeA
@@ -125,29 +107,15 @@ Envoy shouldn't even bee in the picture here, as we haven't created an L7 policy
       subgraph NodeB
         Envoy
         Service
-        ProductPage
+        WebServer 
       end
-    Envoy---Service---ProductPage
+    Envoy---Service---WebServer
     LoadPod---Envoy
 ```
-#### With Backend Calls
-   ```mermaid
-    graph LR;
-      subgraph NodeA
-        LoadPod
-      end
-      subgraph NodeB
-        Envoy
-        Service
-        ProductPage
-        Backend
-      end
-    Envoy---Service---ProductPage---Backend
-    LoadPod---Envoy
- ```
+
  ### With Ingress 
 Creating an Ingress policy will create Envoy instances across the fleet of nodes in the cluster.
-  #### Simple HTTP Request
+  #### HTTP Request
    ```mermaid
     graph LR;
       subgraph NodeA
@@ -155,32 +123,14 @@ Creating an Ingress policy will create Envoy instances across the fleet of nodes
       end
       subgraph NodeB
         Service
-        ProductPage
+        WebServer 
       end
-    Envoy---Service---ProductPage
+    Envoy---Service---WebServer
     LoadPod---Envoy
 ```
-#### With Backend Calls
-   ```mermaid
-    graph LR;
-      subgraph NodeA
-        LoadPod
-      end
-      subgraph NodeB
-        Service
-        ProductPage
-        Backend
-      end
-    Envoy---Service---ProductPage---Backend
-    LoadPod---Envoy
-   ```
-
-### With Ingress and L7 policy
-
-## CPU overhead for Observability
-This needs some more investigation to establish a baseline. 
 
 ## Test Cases
+Test Cases assume you have enabled all the tooling mentioned above. If not, please refer back to the Tooling section. 
 ### 1.1 Baseline - No Policy or Ingress defined
 #### Steps to reproduce
 1. Deploy Cloud in GKE using (https://github.com/jtaleric/tinker/tree/main/clouds/gke/kernel-swap) 
@@ -192,10 +142,10 @@ This needs some more investigation to establish a baseline.
 2. Once the cluster is up, ensure the kernel version, `kubectl get nodes -o wide` 
 3. Label a single node with `app=workload` this will be where Nighthawk runs, and we will steer all other pods to other nodes.
 4. Follow the Kube-burner & Prometheus setup in the [tooling section](/Tooling-setup)
-5. `kubectl create -f https://gist.githubusercontent.com/jtaleric/b786331b9c36b122b52aac666d9b2a64/raw/ed9a8afcfc117caeb1b091e7ee4b42b2a6a0558a/sm-benchmark-deployment.yaml`
-6. Note the svc ip for the productpage that was deployed
-7. Exec into the load pod `kubectl exec -it <pod> - sh`
-8. Ensure connectivity to the svc ip is working with a simple 10sec test `nighthawk_client --duration 10 --simple-warmup --rps 1000 --connections 1 --concurrency auto -v error http://<svc ip>:<port>/` 
+5. `kubectl create -f scripts/service-mesh/sm-perf.yaml`
+6. Exec into the load pod `kubectl exec -it <pod> - sh`
+7. Ensure connectivity to the svc ip is working with a simple 10sec test `nighthawk_client --duration 10 --simple-warmup --rps 1000 --connections 1 --concurrency auto -v error http://baseline:9080/` 
+
 *Good Output:*
 ```
 Counter                                 Value       Per second
@@ -205,14 +155,40 @@ benchmark.http_2xx                      7631        763.10
 ```
 Counter                                 Value       Per second
 cluster_manager.cluster_added           4           inf
-```
-1. ```for n in {1..3}; do k exec -it <load pod> -- nighthawk_client --duration 60 --simple-warmup --rps 1000 --connections 1 --concurrency auto -v error http://<svc ip>:<port>/ --output-format fortio | tee baseline-$n.json; done```
-   
-   > We will run with a single connection and attempt to achieve 1000rps. Since we are testing in mainly cloud environments. This can be adjusted if you are running in a more controlled deployment such as bare- metal. 
+```   
+   > This will run with a single connection and attempt to achieve 1000rps.
+8. Setup your env vars for the test 
+    ```
+    NAME    - Name of the test, ie l7Policy
+    STORE   - Store the system metrics to ES w/ kube-burner 
+    HUBBLE  - Run test iteration with Hubble enabled
+    ```
+9. Kick off the test script `scripts/service-mesh/run.sh`
+
+The `run.sh` script will generate some log artifacts that contain the results. 
+
+      > grep benchmark_http_client.latency_2xx -A9 * | grep 0.95
+
+      To capture the 95%tile latency observed during the workload
+
+      > grep benchmark.http_2xx *
+
+      To capture the rps observed during the workload
 
 #### Metrics
-##### Node CPU
-##### Node Memory
+- Requests Per Second (rps) 
+  
+    Total number of requests that Nighthawk was able to achieve. 
+
+- Latency (us)
+  
+   Response time observed during the workload
+
+- CPU Utilization (% idle)
+  
+   While we capture all CPU utilization, we will focus on the idle CPU which will give us an idea of how much available CPU is left for other applications while under load. 
+
+- Memory Utilization (% available)
 
 ### 1.2 Baseline - No Policy or Ingress defined - Hubble Enabled
 #### Steps to reproduce
@@ -239,9 +215,11 @@ benchmark.http_2xx                      7631        763.10
 Counter                                 Value       Per second
 cluster_manager.cluster_added           4           inf
 ```
-1. ```for n in {1..3}; do k exec -it <load pod> -- nighthawk_client --duration 60 --simple-warmup --rps 1000 --connections 1 --concurrency auto -v error http://<svc ip>:<port>/ --output-format fortio | tee baseline-$n.json; done```
-   
    > We will run with a single connection and attempt to achieve 1000rps. Since we are testing in mainly cloud environments. This can be adjusted if you are running in a more controlled deployment such as bare- metal. 
+9. Setup your env vars for the test 
+    ```
+    NAME    - Name of the test, ie l7Policy
+    STORE   - Store the system metrics to ES w/ kube-burner 
+    HUBBLE  - Run test iteration with Hubble enabled
+    ```
 #### Metrics
-##### CPU
-##### Memory
