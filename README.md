@@ -23,6 +23,8 @@ Each CTP should determine the frequency of which it is executed. Some might be b
 
 | Workflow | Unit Testing | Conformance Testing | CTP |
 |----------|--------------|----------------------|---|
-| Pull Request |  ✅ | ✅ | Maybe |
-| Weekly | ✅ | ✅ | Maybe|
+| Pull Request |  ✅ | ✅ | No |
+| Weekly | ✅ | ✅ | No |
+| Pre-Feature Freeze | ✅ | ✅ |✅ |
+| Pre-Code Freeze | ✅ | ✅ |✅ |
 | Release promotion |  ✅ | ✅ |✅ |
