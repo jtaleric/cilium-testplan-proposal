@@ -1,7 +1,7 @@
 # Cilium Service Mesh Performance Test Plan
 
 ## Frequency we will execute this test plan
-Before each Release
+Before each Cilium release
 
 ## Test Plan Description
 Each of these tests will have multiple metrics we will collect and compare.
@@ -19,7 +19,7 @@ Each of these tests will have multiple metrics we will collect and compare.
 ## Tooling
 ### Tools to be deployed on the SUT
 
-- Nighthawk-http-server \
+- Nighthawk-http-server & Nighthawk client \
 *How do we install nighthawk-http-server?*\
 First label one of your nodes with `app=workload`
  then `kubectl create -f scripts/service-mesh/sm-perf.yaml`
@@ -129,10 +129,10 @@ Creating an Ingress policy will create Envoy instances across the fleet of nodes
     LoadPod---Envoy
 ```
 
-## Test Cases
+# Test Cases
 Test Cases assume you have enabled all the tooling mentioned above. If not, please refer back to the Tooling section.
-### 1.0 Determine Latency at fixed RPS
-####
+## 1 Latency and Throughput
+### 1.1 Determine Latency at fixed RPS
 #### Steps to reproduce
 1. Deploy Cloud in GKE using (https://github.com/jtaleric/tinker/tree/main/clouds/gke/kernel-swap)
    1. Using parameters
@@ -163,7 +163,7 @@ cluster_manager.cluster_added           4           inf
     NAME    - Name of the test, ie l7Policy
     STORE   - Store the system metrics to ES w/ kube-burner
     ```
-9. Kick off the test script `scripts/service-mesh/run.sh`
+9. Kick off the test script `scripts/service-mesh/run-targeted.sh`
 
 The `run-targeted.sh` script will generate some log artifacts that contain the results.
 
@@ -193,7 +193,7 @@ Details about the results :
    While we capture all CPU utilization, we will focus on the idle CPU which will give us an idea of how much available CPU is left for other applications while under load.
 
 - Memory Utilization (% available)
-### 1.1 Baseline - No Policy or Ingress defined
+### 1.2 Baseline - No Policy or Ingress defined
 #### Steps to reproduce
 1. Deploy Cloud in GKE using (https://github.com/jtaleric/tinker/tree/main/clouds/gke/kernel-swap)
    1. Using parameters
@@ -251,8 +251,7 @@ The `run.sh` script will generate some log artifacts that contain the results.
    While we capture all CPU utilization, we will focus on the idle CPU which will give us an idea of how much available CPU is left for other applications while under load.
 
 - Memory Utilization (% available)
-
-### 1.2 Baseline - No Policy or Ingress defined - Hubble Enabled
+### 1.3 Baseline - l7 Policy
 #### Steps to reproduce
 1. Deploy Cloud in GKE using (https://github.com/jtaleric/tinker/tree/main/clouds/gke/kernel-swap)
    1. Using parameters
@@ -262,11 +261,35 @@ The `run.sh` script will generate some log artifacts that contain the results.
     - export BOOTSTRAP=true
 2. Once the cluster is up, ensure the kernel version, `kubectl get nodes -o wide`
 3. Label a single node with `app=workload` this will be where Nighthawk runs, and we will steer all other pods to other nodes.
-4. `cilium hubble enable` Ensure hubble is enabled and cilium doesn't have any errors `cilium status`
-5. `kubectl create -f https://gist.githubusercontent.com/jtaleric/b786331b9c36b122b52aac666d9b2a64/raw/ed9a8afcfc117caeb1b091e7ee4b42b2a6a0558a/sm-benchmark-deployment.yaml`
-6. Note the svc ip for the productpage that was deployed
-7. Exec into the load pod `kubectl exec -it <pod> - sh`
-8. Ensure connectivity to the svc ip is working with a simple 10sec test `nighthawk_client --duration 10 --simple-warmup --rps 1000 --connections 1 --concurrency auto -v error http://<svc ip>:<port>/`
+4. Follow the Kube-burner & Prometheus setup in the [tooling section](/Tooling-setup)
+5. `kubectl create -f scripts/service-mesh/sm-perf.yaml`
+6. Exec into the load pod `kubectl exec -it <pod> - sh`
+7. Apply the l7 policy (Example below)
+```yaml
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "l7rule"
+spec:
+  description: "Allow HTTP GET / from app=workload to app=baseline"
+  endpointSelector:
+    matchLabels:
+      app: baseline
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: workload
+    toPorts:
+    - ports:
+      - port: "9080"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/"
+   ```
+8. Ensure connectivity to the svc ip is working with a simple 10sec test `nighthawk_client --duration 10 --simple-warmup --rps 1000 --connections 1 --concurrency auto -v error http://baseline:9080/`
+
 *Good Output:*
 ```
 Counter                                 Value       Per second
@@ -277,10 +300,38 @@ benchmark.http_2xx                      7631        763.10
 Counter                                 Value       Per second
 cluster_manager.cluster_added           4           inf
 ```
-   > We will run with a single connection and attempt to achieve 1000rps. Since we are testing in mainly cloud environments. This can be adjusted if you are running in a more controlled deployment such as bare- metal.
-9. Setup your env vars for the test
+   > This will run with a single connection and attempt to achieve 1000rps.
+8. Setup your env vars for the test
     ```
     NAME    - Name of the test, ie l7Policy
     STORE   - Store the system metrics to ES w/ kube-burner
     ```
+9. Kick off the test script `scripts/service-mesh/run.sh`
+
+The `run.sh` script will generate some log artifacts that contain the results.
+
+      > grep benchmark_http_client.latency_2xx -A9 * | grep 0.95
+
+      To capture the 95%tile latency observed during the workload
+
+      > grep benchmark.http_2xx *
+
+      To capture the rps observed during the workload
+
 #### Metrics
+- Requests Per Second (rps)
+
+    Total number of requests that Nighthawk was able to achieve.
+
+- Latency (us)
+
+   Response time observed during the workload
+
+- CPU Utilization (% idle)
+
+
+   While we capture all CPU utilization, we will focus on the idle CPU which will give us an idea of how much available CPU is left for other applications while under load.
+
+- Memory Utilization (% available)
+
+## 2 Scale

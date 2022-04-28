@@ -1,32 +1,25 @@
-# Performance bookinfo - Adding Envoy Nighthawk to the definition
+# Performance Infra  
 ##################################################################################################
 # Baseline services
 ##################################################################################################
 apiVersion: v1
 kind: Service
 metadata:
-  name: baseline 
+  name: baseline
   labels:
-    app: baseline 
-    service: baseline 
+    app: baseline
+    service: baseline
 spec:
   ports:
   - port: 9080
     name: http
   selector:
-    app: baseline 
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: bookinfo-baseline
-  labels:
-    account: baseline-server 
+    app: baseline
 ---
 kind: ConfigMap
 apiVersion: v1
 metadata:
-  name: server-config 
+  name: server-config
   namespace: default
 data:
   config.yaml: |-
@@ -35,7 +28,7 @@ data:
         - address:
             socket_address:
               address: 0.0.0.0
-              port_value: 9080 
+              port_value: 9080
           filter_chains:
             - filters:
                 - name: envoy.filters.network.http_connection_manager
@@ -81,23 +74,23 @@ kind: Deployment
 metadata:
   name: baseline-v1
   labels:
-    app: baseline 
+    app: baseline
     version: v1
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: baseline 
+      app: baseline
       version: v1
   template:
     metadata:
       labels:
-        app: baseline 
+        app: baseline
         version: v1
     spec:
       containers:
-      - name: baseline 
-        image: envoyproxy/nighthawk-dev:latest 
+      - name: baseline
+        image: envoyproxy/nighthawk-dev:latest
         imagePullPolicy: IfNotPresent
           #command: ["/bin/ash", "-c", "sleep 10000000"]
         command: ["nighthawk_test_server","-c", "/tmp/config/config.yaml"]
@@ -115,10 +108,10 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
             - matchExpressions:
-              - key: app 
+              - key: app
                 operator: NotIn
                 values:
-                - workload 
+                - workload
       volumes:
       - name: config-volume
         configMap:
@@ -131,23 +124,23 @@ kind: Deployment
 metadata:
   name: load-v1
   labels:
-    app: workload 
+    app: workload
     version: v1
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: workload 
+      app: workload
       version: v1
   template:
     metadata:
       labels:
-        app: workload 
+        app: workload
         version: v1
     spec:
       containers:
-      - name: benchmark 
-        image: envoyproxy/nighthawk-dev:latest 
+      - name: benchmark
+        image: envoyproxy/nighthawk-dev:latest
         imagePullPolicy: IfNotPresent
         command: ["/bin/ash", "-c", "sleep 10000000"]
         securityContext:
@@ -157,8 +150,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
             - matchExpressions:
-              - key: app 
+              - key: app
                 operator: In
                 values:
-                - workload 
----
+                - workload

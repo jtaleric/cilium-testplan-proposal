@@ -4,9 +4,9 @@ token=LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUVMVENDQXBXZ0F3SUJBZ0lSQVBmU0JCV0
 
 start=$(date +%s)
 sleep 120 # provide a quiet time prior to kicking off the workload.
-for n in {1..5}; do 
+for n in {1..5}; do
    kubectl exec $(kubectl get pods -l app=workload -o custom-columns=:.metadata.name --no-headers) -c benchmark -- nighthawk_client --duration 60 --rps 10 --connections 10 --concurrency 16 -v info http://baseline:9080/ | tee ${testname}-${n}-160.out  sleep 120 
-done 
+done
 end=$(date +%s)
 if $store; then
     kube-burner index -c burner.yaml -m rook-node-v2.yaml -t $token -u http://127.0.0.1:9090 --start $start --end $end --uuid $end-${testname}-160
@@ -14,9 +14,9 @@ fi
 
 start=$(date +%s)
 sleep 120 # provide a quiet time prior to kicking off the workload.
-for n in {1..5}; do 
+for n in {1..5}; do
    kubectl exec $(kubectl get pods -l app=workload -o custom-columns=:.metadata.name --no-headers) -c benchmark -- nighthawk_client --duration 60 --rps 100 --connections 10 --concurrency 16 -v info http://baseline:9080/ | tee ${testname}-${n}-1600.out  sleep 120 
-done 
+done
 end=$(date +%s)
 if $store; then
     kube-burner index -c burner.yaml -m rook-node-v2.yaml -t $token -u http://127.0.0.1:9090 --start $start --end $end --uuid $end-${testname}-1600 
@@ -24,9 +24,9 @@ fi
 
 start=$(date +%s)
 sleep 120 # provide a quiet time prior to kicking off the workload.
-for n in {1..5}; do 
+for n in {1..5}; do
    kubectl exec $(kubectl get pods -l app=workload -o custom-columns=:.metadata.name --no-headers) -c benchmark -- nighthawk_client --duration 60 --rps 1000 --connections 10 --concurrency 16 -v info http://baseline:9080/ | tee ${testname}-${n}-16000.out  sleep 120 
-done 
+done
 end=$(date +%s)
 if $store; then
     kube-burner index -c burner.yaml -m rook-node-v2.yaml -t $token -u http://127.0.0.1:9090 --start $start --end $end --uuid $end-${testname}-16000 
