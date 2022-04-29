@@ -36,6 +36,10 @@ First label one of your nodes with `app=workload`
 
    **WIP but having a Cilium specific dashboard showing Overall System metrics + Cilium Specific Metrics.  https://github.com/jtaleric/performance-dashboards/commit/1ac3a9b21c33c3dc2516f21428ebd4ea4a6396c1#diff-b9c0833d120841436640df16492f6e79f8e99e25232047aadcb63bd4378193aeR339-R375
 
+- benchmark-comparison \
+  *How do install benchmark-comparison* \
+  https://github.com/cloud-bulldozer/benchmark-comparison#usage
+
 ### Tooling Setup
 #### kube-burner
 We will use kube-burner to scrape prometheus and store the metrics in ES.
@@ -131,7 +135,7 @@ Creating an Ingress policy will create Envoy instances across the fleet of nodes
 
 # Test Cases
 Test Cases assume you have enabled all the tooling mentioned above. If not, please refer back to the Tooling section.
-## 1 Latency and Throughput
+## 1.0 Latency and Throughput
 ### 1.1 Determine Latency at fixed RPS
 #### Steps to reproduce
 1. Deploy Cloud in GKE using (https://github.com/jtaleric/tinker/tree/main/clouds/gke/kernel-swap)
@@ -334,4 +338,37 @@ The `run.sh` script will generate some log artifacts that contain the results.
 
 - Memory Utilization (% available)
 
-## 2 Scale
+## 2.0 Control Plane Performance
+### 2.1 Naked Pod Creation Latency
+#### Steps to reproduce
+1. Deploy Cloud in GKE using (https://github.com/jtaleric/tinker/tree/main/clouds/gke/kernel-swap)
+   1. Using parameters
+    - export TYPE=n2-standard-16
+    - export KERNEL=5.16
+    - export NODES=5
+    - export BOOTSTRAP=true
+
+2. Follow the kube-burner & Prometheus setup in the [tooling section](/Tooling-setup)
+3. To deploy the naked-pod workload, refer to the `scripts/service-mesh/naked-density-tmpl.yml`
+   1. Update the parameters (such as the User/Password for your ES Server)
+4. Execute the benchmark by running `kube-burner index -c naked-density-tmpl.yml -m rook-node-v2.yaml -t $token -u http://127.0.0.1:9090`
+   1. Where token is the prometheus token captured in step 2.
+   2. `http://127.0.0.1 ` is the prometheus forward for kube-burner to scrape prometheus.
+   3. `rook-node-v2.yaml` is the prometheus scraping config which kube-burner will use to capture and label the metrics.
+#### Metrics
+This workload, we are strictly interested in looking at the podLatency, which is the time it takes a pod to become "Ready".
+1. Install benchmark-comparison (https://github.com/cloud-bulldozer/benchmark-comparison#usage)
+2. Capture the UUIDs you want to inspect the podLatency for.
+3. `touchstone_compare -url https://user:password@es:9243 -u <uuid-1> <uuid-2> --config scripts/service-mesh/podlatency.yaml`
+   1. This will query the provided ES server, and look for the two uuids referenced. Specifically querying for podlatency.
+   2. example output
+```
++--------------------------------+-----------------+----------+----------------------------+---------------------------+
+|           metricName           |  quantileName   |  metric  | 1650993041-cilium-100-run1 | 1650997776-istio-100-run1 |
++--------------------------------+-----------------+----------+----------------------------+---------------------------+
+| podLatencyQuantilesMeasurement | ContainersReady | avg(P99) |           5703.0           |          92274.0          |
+| podLatencyQuantilesMeasurement |   Initialized   | avg(P99) |            77.0            |          73599.0          |
+| podLatencyQuantilesMeasurement |  PodScheduled   | avg(P99) |            31.0            |           40.0            |
+| podLatencyQuantilesMeasurement |      Ready      | avg(P99) |           5703.0           |          92274.0          |
++--------------------------------+-----------------+----------+----------------------------+---------------------------+
+```

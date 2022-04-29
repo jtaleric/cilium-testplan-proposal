@@ -1,0 +1,34 @@
+{
+    "elasticsearch": {
+        "kube-burner": [
+            {
+                "filter": {
+                    "metricName.keyword": "allNodeCPU"
+                },
+                "buckets": [
+                    "labels.mode.keyword"
+                ],
+                "aggregations": {
+                    "value": [
+                        "avg"
+                    ]
+                }
+            },
+            {
+                "filter": {
+                    "metricName.keyword": "nodeCPU"
+                },
+                "buckets": [
+                    "labels.node.keyword",
+                    "labels.mode.keyword"
+                ],
+                "aggregations": {
+                    "value": [
+                        "avg"
+                    ]
+                }
+            }
+
+        ]
+    }
+}

@@ -1,0 +1,33 @@
+---
+global:
+  writeToFile: true
+  metricsDirectory: collected-metrics
+  indexerConfig:
+    enabled: true
+    esServers: [https://user:pass@iso-index.es.eastus2.azure.elastic-cloud.com:9243]
+    insecureSkipVerify: true
+    defaultIndex: kube-burner
+    type: elastic
+  measurements:
+    - name: podLatency
+      esIndex: kube-burner
+
+jobs:
+  - name: rook-naked-density
+    jobIterations: 200
+    qps: 25
+    burst: 25
+    namespacedIterations: false
+    namespace: rook-density
+    waitWhenFinished: true
+    podWait: false
+    objects:
+
+      - objectTemplate: templates/l7policy.yml
+        replicas: 1
+
+      - objectTemplate: templates/pod.yml
+        replicas: 1
+        inputVars:
+          containerImage: gcr.io/google_containers/pause-amd64:3.0
+
