@@ -1,0 +1,22 @@
+---
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: l7rule-{{.Iteration}}
+spec:
+  description: "Allow HTTP GET / "
+  endpointSelector:
+    matchLabels:
+      name: kubelet-density-{{.Iteration}}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        name: kubelet-density-{{.Iteration}} 
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/"
